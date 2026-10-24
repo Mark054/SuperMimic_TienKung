@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-A standalone SuperMimic implementation for the Tiangong 3.0 (TienKung) humanoid robot. The repository includes the Tiangong robot model, a motion dataset, motion conversion tools, differentiable world-model training, policy playback, and evaluation. Trained weights (checkpoints) are not released.
+A standalone SuperMimic implementation for the Tiangong 3.0 (TienKung) humanoid robot. The repository includes the Tiangong robot model, a motion dataset, motion conversion tools, differentiable world-model training, policy playback, and evaluation. 
 
 ![SuperMimic Tiangong 3.0 motion tracking](SuperMimic_tiangong.gif)
 
