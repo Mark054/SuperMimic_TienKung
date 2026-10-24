@@ -1,0 +1,23 @@
+"""Tiangong 3-only state, observation, goal, action, and context dimensions."""
+
+from tiangong_supermimic.robot import NUM_JOINTS
+
+NQ = 7 + NUM_JOINTS
+NV = 6 + NUM_JOINTS
+STATE_DIM = NQ + NV
+FEATURE_DIM = STATE_DIM
+DELTA_DIM = 12 + 2 * NUM_JOINTS
+ACTION_DIM = NUM_JOINTS
+XI_DIM = 1 + NUM_JOINTS + 3
+OBS_DIM = 3 * NUM_JOINTS + 6
+HISTORY_LENGTH = 10
+OBS_HISTORY_DIM = HISTORY_LENGTH * OBS_DIM
+GOAL_FRAME_DIM = 2 * NUM_JOINTS + 10
+FUTURE_FRAMES = 10
+GOAL_DIM = FUTURE_FRAMES * GOAL_FRAME_DIM
+ANCHOR_OBS_DIM = 9
+
+JOINT_POS = slice(7, 7 + NUM_JOINTS)
+ROOT_LIN_VEL = slice(NQ, NQ + 3)
+ROOT_ANG_VEL = slice(NQ + 3, NQ + 6)
+JOINT_VEL = slice(NQ + 6, STATE_DIM)

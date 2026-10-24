@@ -1,0 +1,27 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Checkpoints and experiment output. Only the released dataset under data/npz/tiangong3 is tracked.
+/data/*
+!/data/npz/
+/data/npz/*
+!/data/npz/tiangong3/
+/logs/
+wandb/
+*.pt
+*.onnx
+
+# Local editor and OS files.
+.vscode/
+.idea/
+.DS_Store
+
+# Local asset-building scripts.
+/scripts/tiangong3/split_large_meshes.py
+/scripts/tiangong3/build_collision_models.py
