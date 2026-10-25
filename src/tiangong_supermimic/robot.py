@@ -60,7 +60,7 @@ NUM_JOINTS = len(TIANGONG3_JOINT_NAMES)
 
 ROOT_BODY = "pelvis"
 ANCHOR_BODY = "waist_pitch_link"
-FOOT_GEOM_REGEX = r"^ankle_roll_[lr]_link_collision$"
+FOOT_GEOM_REGEX = r"^ankle_roll_[lr]_link_rail[12]_collision$"
 # Conservative visual-envelope colliders overlap nearby bodies in the same kinematic
 # assembly. Exclude only structural neighbors; contacts between separate limbs remain active.
 SELF_COLLISION_EXCLUDES: tuple[tuple[str, str], ...] = (

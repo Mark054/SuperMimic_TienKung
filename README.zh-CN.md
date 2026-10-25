@@ -125,6 +125,11 @@ uv run python scripts/tiangong3/eval_benchmark.py \
 | `simplified` | 每个零件一个简化凸包 | 开启 | 8192 |
 | `mesh` | 原始网格（按凸包处理） | 开启 | 4096 |
 
+所有模式下，每只脚均使用两根半径 5 mm 的纵向胶囊轨道，圆角外轮廓为
+270 x 104 mm；脚部网格仅用于显示，平地接触不再依赖 STL 凸包。
+
+`filter_clips.py` 会在地面对齐前删除部分重定向 LAFAN 轨迹开头的三帧平移接缝。
+
 自碰撞排除了相邻部件，列表见 `src/tiangong_supermimic/robot.py` 中的 `SELF_COLLISION_EXCLUDES`。
 
 `play.py` 加 `--colliders` 可用半透明红色显示碰撞体，加 `--no-ghost` 隐藏蓝色参考动作。

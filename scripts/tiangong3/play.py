@@ -18,7 +18,7 @@ from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 from tiangong_supermimic.envs import TianGongEnvCfgArgs, make_env
 from tiangong_supermimic.envs.mdp.motion_library import discover_npz
 from tiangong_supermimic.eval.benchmark import load_policy_from_checkpoint
-from tiangong_supermimic.robot import CollisionMode
+from tiangong_supermimic.robot import FOOT_GEOM_REGEX, CollisionMode
 
 
 class _DictPolicy:
@@ -40,6 +40,7 @@ def main(
     viewer: Literal["auto", "native", "viser"] = "auto",
     ghost: bool = True,
     colliders: bool = False,
+    foot_colliders: bool = False,
     sampling: Literal["start", "uniform"] = "start",
 ) -> None:
     files = [str(path) for path in discover_npz(npz_dir, names=clips)]
@@ -61,10 +62,12 @@ def main(
         record_transitions=False,
         seed=0,
         anchor_obs=cfg["env"].get("anchor_obs", False),
-        debug_vis=ghost or colliders,
+        debug_vis=ghost or colliders or foot_colliders,
         extra_command_kwargs={
             "show_reference_ghost": ghost,
-            "show_colliders": colliders,
+            "show_colliders": colliders or foot_colliders,
+            "collider_geom_regex": FOOT_GEOM_REGEX if foot_colliders else r".*_collision",
+            "show_collider_primitives": foot_colliders,
         },
     )
     env = RslRlVecEnvWrapper(make_env(args, device=device))
@@ -73,7 +76,8 @@ def main(
         viewer = "native" if (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")) else "viser"
     print(
         f"[INFO] {len(files)} Tiangong clip(s), {num_envs} env(s), viewer={viewer}, "
-        f"ghost={ghost}, colliders={colliders}, collision={collision_mode}"
+        f"ghost={ghost}, colliders={colliders}, foot_colliders={foot_colliders}, "
+        f"collision={collision_mode}"
     )
     try:
         if viewer == "native":

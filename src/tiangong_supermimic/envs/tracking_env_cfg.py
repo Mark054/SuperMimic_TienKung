@@ -297,8 +297,8 @@ def make_env_cfg(a: TianGongEnvCfgArgs) -> ManagerBasedRlEnvCfg:
             azimuth=120.0,
         ),
         sim=QuietSimulationCfg(
-            nconmax=128 if a.collision_mode == "mesh" else 96,
-            njmax=512 if a.collision_mode == "mesh" else 384,
+            nconmax=128,
+            njmax=768,
             mujoco=MujocoCfg(timestep=0.005, iterations=10, ls_iterations=20, ccd_iterations=16),
         ),
         decimation=4,

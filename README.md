@@ -125,6 +125,13 @@ Select with `--env.collision-mode` for training and `--collision` for `play.py` 
 | `simplified` | One simplified convex hull per part | On | 8192 |
 | `mesh` | Original meshes (treated as convex hulls) | On | 4096 |
 
+In every mode, each foot uses two longitudinal capsule rails with a 5 mm
+radius. Their rounded footprint is 270 x 104 mm; the foot mesh is visual-only.
+This keeps flat-ground contact independent of the STL convex hull.
+
+`filter_clips.py` also removes the three-frame translation seam found at the
+start of some retargeted LAFAN clips before computing ground alignment.
+
 Adjacent parts are excluded from self-collision; see `SELF_COLLISION_EXCLUDES` in `src/tiangong_supermimic/robot.py`.
 
 Add `--colliders` to `play.py` to show colliders in translucent red, and `--no-ghost` to hide the blue reference motion.

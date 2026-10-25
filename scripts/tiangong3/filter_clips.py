@@ -19,8 +19,24 @@ from pathlib import Path
 
 import numpy as np
 
-from tiangong_supermimic.data.motion_convert import collider_floor_lift, lowest_foot_height
+from tiangong_supermimic.data.motion_convert import collider_floor_lift, stance_ground_level
 from tiangong_supermimic.robot import load_tiangong3_model
+
+LEADING_WARMUP_FRAMES = 3
+
+
+def trim_leading_warmup(clip: dict[str, np.ndarray]) -> None:
+    """Remove the three-frame retargeting derivative seam at every clip start."""
+    already_trimmed = int(clip.get("leading_warmup_trimmed", np.array([0]))[0])
+    if already_trimmed >= LEADING_WARMUP_FRAMES:
+        return
+    frames = len(clip["joint_pos"])
+    if frames <= LEADING_WARMUP_FRAMES:
+        raise ValueError(f"clip has only {frames} frames")
+    for key, value in tuple(clip.items()):
+        if value.ndim > 0 and value.shape[0] == frames:
+            clip[key] = value[LEADING_WARMUP_FRAMES:]
+    clip["leading_warmup_trimmed"] = np.array([LEADING_WARMUP_FRAMES], dtype=np.int32)
 
 
 def main() -> None:
@@ -43,16 +59,16 @@ def main() -> None:
     for source in files:
         with np.load(source) as data:
             clip = {key: data[key] for key in data.files}
+        input_frames = len(clip["joint_pos"])
+        total_in += input_frames
+        trim_leading_warmup(clip)
         frames = len(clip["joint_pos"])
-        total_in += frames
         kept = not any(fnmatch(source.stem, pattern) for pattern in args.exclude)
         report.append((source.stem, frames / float(clip["fps"][0]), kept))
         if not kept:
             continue
-        shift = -float(
-            np.percentile(
-                lowest_foot_height(models[0], clip["body_pos_w"], clip["body_quat_w"]), 1.0
-            )
+        shift = -stance_ground_level(
+            models[0], clip["body_pos_w"], clip["body_quat_w"], float(clip["fps"][0])
         )
         clip["body_pos_w"][:, :, 2] += shift
         clip["ground_offset"] = clip["ground_offset"] + shift

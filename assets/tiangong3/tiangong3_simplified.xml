@@ -49,13 +49,11 @@
     <mesh name="hip_yaw_l_link_simplified" content_type="model/stl" file="collision/hip_yaw_l_link.stl" />
     <mesh name="knee_pitch_l_link_simplified" content_type="model/stl" file="collision/knee_pitch_l_link.stl" />
     <mesh name="ankle_pitch_l_link_simplified" content_type="model/stl" file="collision/ankle_pitch_l_link.stl" />
-    <mesh name="ankle_roll_l_link_simplified" content_type="model/stl" file="collision/ankle_roll_l_link.stl" />
     <mesh name="hip_pitch_r_link_simplified" content_type="model/stl" file="collision/hip_pitch_r_link.stl" />
     <mesh name="hip_roll_r_link_simplified" content_type="model/stl" file="collision/hip_roll_r_link.stl" />
     <mesh name="hip_yaw_r_link_simplified" content_type="model/stl" file="collision/hip_yaw_r_link.stl" />
     <mesh name="knee_pitch_r_link_simplified" content_type="model/stl" file="collision/knee_pitch_r_link.stl" />
     <mesh name="ankle_pitch_r_link_simplified" content_type="model/stl" file="collision/ankle_pitch_r_link.stl" />
-    <mesh name="ankle_roll_r_link_simplified" content_type="model/stl" file="collision/ankle_roll_r_link.stl" />
     <mesh name="imu_waist_link_simplified" content_type="model/stl" file="collision/imu_waist_link.stl" />
     <mesh name="waist_yaw_link_simplified" content_type="model/stl" file="collision/waist_yaw_link.stl" />
     <mesh name="waist_roll_link_simplified" content_type="model/stl" file="collision/waist_roll_link.stl" />
@@ -120,8 +118,9 @@
                 <body name="ankle_roll_l_link">
                   <inertial pos="0.025067 2e-06 -0.033303" quat="0 0.724221 0 0.689568" mass="0.826437" diaginertia="0.00479986 0.004499 0.000692141" />
                   <joint name="ankle_roll_l_joint" range="-0.523599 0.523599" actuatorfrcrange="-55 55" axis="1 0 0" />
-                  <geom pos="0 0 0" quat="1 0 0 0" type="mesh" rgba="0.752941 0.752941 0.752941 1" mesh="ankle_roll_l_link" name="ankle_roll_l_link_visual" contype="0" conaffinity="0" condim="3" friction="0.6 0.005 0.0001" density="0" group="0" />
-                  <geom pos="0 0 0" quat="1 0 0 0" type="mesh" rgba="1 0 0 0" mesh="ankle_roll_l_link_simplified" name="ankle_roll_l_link_collision" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" density="0" group="3" />
+                  <geom pos="0 0 0" quat="1 0 0 0" type="mesh" rgba="0.752941 0.752941 0.752941 1" mesh="ankle_roll_l_link" name="ankle_roll_l_link_visual" contype="0" conaffinity="0" condim="1" density="0" group="0" />
+                  <geom name="ankle_roll_l_link_rail1_collision" type="cylinder" pos="0.035 -0.025 -0.042" quat="0.707105 0 0.707108 0" size="0.015 0.115" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" group="3" rgba="1 0 0 0" />
+                  <geom name="ankle_roll_l_link_rail2_collision" type="cylinder" pos="0.035 0.025 -0.042" quat="0.707105 0 0.707108 0" size="0.015 0.115" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" group="3" rgba="1 0 0 0" />
                 </body>
               </body>
             </body>
@@ -156,8 +155,9 @@
                 <body name="ankle_roll_r_link">
                   <inertial pos="0.025067 -2e-06 -0.033303" quat="0 0.724221 0 0.689568" mass="0.826437" diaginertia="0.00479986 0.004499 0.000692141" />
                   <joint name="ankle_roll_r_joint" range="-0.523599 0.523599" actuatorfrcrange="-55 55" axis="1 0 0" />
-                  <geom quat="1 0 0 0" type="mesh" rgba="0.752941 0.752941 0.752941 1" mesh="ankle_roll_r_link" name="ankle_roll_r_link_visual" contype="0" conaffinity="0" condim="3" friction="0.6 0.005 0.0001" density="0" group="0" />
-                  <geom quat="1 0 0 0" type="mesh" rgba="1 0 0 0" mesh="ankle_roll_r_link_simplified" name="ankle_roll_r_link_collision" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" density="0" group="3" />
+                  <geom quat="1 0 0 0" type="mesh" rgba="0.752941 0.752941 0.752941 1" mesh="ankle_roll_r_link" name="ankle_roll_r_link_visual" contype="0" conaffinity="0" condim="1" density="0" group="0" />
+                  <geom name="ankle_roll_r_link_rail1_collision" type="cylinder" pos="0.035 -0.025 -0.042" quat="0.707105 0 0.707108 0" size="0.015 0.115" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" group="3" rgba="1 0 0 0" />
+                  <geom name="ankle_roll_r_link_rail2_collision" type="cylinder" pos="0.035 0.025 -0.042" quat="0.707105 0 0.707108 0" size="0.015 0.115" contype="1" conaffinity="1" condim="3" friction="0.6 0.005 0.0001" group="3" rgba="1 0 0 0" />
                 </body>
               </body>
             </body>

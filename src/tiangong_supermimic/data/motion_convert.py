@@ -230,7 +230,7 @@ _BOX_SIGNS = np.array(
 
 
 def collision_points_body(model: mujoco.MjModel, geom_id: int) -> np.ndarray:
-    """Collision geom surface points (mesh vertices or box corners) in its body frame."""
+    """Collision geom support points in its body frame."""
     if model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_MESH:
         mesh_id = model.geom_dataid[geom_id]
         start = model.mesh_vertadr[mesh_id]
@@ -239,41 +239,111 @@ def collision_points_body(model: mujoco.MjModel, geom_id: int) -> np.ndarray:
         points = points[ConvexHull(points).vertices]
     elif model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_BOX:
         points = _BOX_SIGNS * model.geom_size[geom_id]
+    elif model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_CAPSULE:
+        half_length = model.geom_size[geom_id, 1]
+        points = np.array(((0.0, 0.0, -half_length), (0.0, 0.0, half_length)))
+    elif model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_SPHERE:
+        points = np.zeros((1, 3), dtype=np.float64)
+    elif model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_CYLINDER:
+        radius, half_length = model.geom_size[geom_id, :2]
+        angles = np.linspace(0.0, 2.0 * np.pi, 16, endpoint=False)
+        rim = np.stack((radius * np.cos(angles), radius * np.sin(angles)), axis=1)
+        points = np.concatenate(
+            [np.column_stack((rim, np.full(len(rim), z))) for z in (-half_length, half_length)]
+        )
     else:
-        raise ValueError(f"{model.geom(geom_id).name} must be a box or mesh geom")
+        raise ValueError(f"{model.geom(geom_id).name} has unsupported collision geometry")
     geom_rot = Rotation.from_quat(quat_wxyz_to_xyzw(model.geom_quat[geom_id])).as_matrix()
     return model.geom_pos[geom_id] + points @ geom_rot.T
+
+
+def _rounded_geom_lowest_projection(
+    model: mujoco.MjModel, geom_id: int, body_world_z: np.ndarray
+) -> np.ndarray:
+    """Lowest sphere/capsule/cylinder projection relative to its body origin."""
+    center = np.einsum("...j,j->...", body_world_z, model.geom_pos[geom_id])
+    radius = model.geom_size[geom_id, 0]
+    geom_type = int(model.geom_type[geom_id])
+    if geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
+        return center - radius
+    if geom_type not in (mujoco.mjtGeom.mjGEOM_CAPSULE, mujoco.mjtGeom.mjGEOM_CYLINDER):
+        raise ValueError(f"{model.geom(geom_id).name} is not a rounded geom")
+    geom_rot = Rotation.from_quat(quat_wxyz_to_xyzw(model.geom_quat[geom_id])).as_matrix()
+    axial_projection = np.abs(np.einsum("...j,j->...", body_world_z, geom_rot[:, 2]))
+    half_length = model.geom_size[geom_id, 1]
+    if geom_type == mujoco.mjtGeom.mjGEOM_CAPSULE:
+        return center - half_length * axial_projection - radius
+    radial = np.sqrt(np.clip(1.0 - axial_projection**2, 0.0, 1.0))
+    return center - half_length * axial_projection - radius * radial
+
+
+def foot_heights(
+    model: mujoco.MjModel, body_pos_w: np.ndarray, body_quat_w: np.ndarray
+) -> tuple[np.ndarray, list[int]]:
+    """Per-frame lowest contact height of each foot, shape (2, T), and foot body indices."""
+    heights = []
+    body_indices = []
+    for side in ("l", "r"):
+        prefix = f"ankle_roll_{side}_link_rail"
+        geom_ids = [
+            geom_id
+            for geom_id in range(model.ngeom)
+            if (model.geom(geom_id).name or "").startswith(prefix)
+        ]
+        if len(geom_ids) != 2:
+            raise ValueError(f"expected two foot colliders matching {prefix}, found {len(geom_ids)}")
+        rail_heights = []
+        for geom_id in geom_ids:
+            body_index = int(model.geom_bodyid[geom_id]) - 1
+            body_rot = Rotation.from_quat(
+                quat_wxyz_to_xyzw(body_quat_w[:, body_index])
+            ).as_matrix()
+            local_lowest = _rounded_geom_lowest_projection(
+                model, geom_id, body_rot[:, 2, :]
+            )
+            rail_heights.append(body_pos_w[:, body_index, 2] + local_lowest)
+        heights.append(np.min(np.stack(rail_heights), axis=0))
+        body_indices.append(body_index)
+    return np.stack(heights), body_indices
 
 
 def lowest_foot_height(
     model: mujoco.MjModel, body_pos_w: np.ndarray, body_quat_w: np.ndarray
 ) -> np.ndarray:
-    """Per-frame height of the lowest foot collider point, from body states of shape (T, nbody-1, ...)."""
-    sole_heights = []
-    for side in ("l", "r"):
-        name = f"ankle_roll_{side}_link_collision"
-        geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, name)
-        if geom_id < 0:
-            raise ValueError(f"missing foot collider {name}")
-        body_index = int(model.geom_bodyid[geom_id]) - 1
-        points_body = collision_points_body(model, geom_id)
-        body_rot = Rotation.from_quat(quat_wxyz_to_xyzw(body_quat_w[:, body_index])).as_matrix()
-        heights = body_pos_w[:, body_index, None, 2] + np.einsum(
-            "tj,cj->tc", body_rot[:, 2, :], points_body
-        )
-        sole_heights.append(heights.min(axis=1))
-    return np.minimum(*sole_heights)
+    """Per-frame height of the lowest foot contact point."""
+    return np.min(foot_heights(model, body_pos_w, body_quat_w)[0], axis=0)
+
+
+def stance_ground_level(
+    model: mujoco.MjModel,
+    body_pos_w: np.ndarray,
+    body_quat_w: np.ndarray,
+    fps: float,
+    anchor_s: float = 1.0,
+    max_speed: float = 0.15,
+) -> float:
+    """Median sole height of planted feet during the first ``anchor_s`` seconds.
+
+    Mocap drifts vertically by centimetres over a clip; anchoring to the start keeps the
+    initial reset in ground contact instead of dropping the robot from the air.
+    """
+    heights, body_indices = foot_heights(model, body_pos_w, body_quat_w)
+    foot_pos = body_pos_w[:, body_indices]
+    speed = np.linalg.norm(np.gradient(foot_pos, 1.0 / fps, axis=0), axis=-1).T
+    planted = np.where(speed < max_speed, heights, np.inf).min(axis=0)[: max(1, int(anchor_s * fps))]
+    planted = planted[np.isfinite(planted)]
+    if len(planted) == 0:
+        return float(np.percentile(heights.min(axis=0), 1.0))
+    return float(np.median(planted))
 
 
 def align_feet_to_ground(
     model: mujoco.MjModel,
     motion: ResampledMotion,
     bodies: BodyStates,
-    percentile: float = 1.0,
 ) -> float:
-    """Shift a clip vertically so its low foot contacts lie on the ground plane."""
-    lowest_sole = lowest_foot_height(model, bodies.pos_w, bodies.quat_w)
-    ground_offset = -float(np.percentile(lowest_sole, percentile))
+    """Shift a clip vertically so its initial planted feet lie on the ground plane."""
+    ground_offset = -stance_ground_level(model, bodies.pos_w, bodies.quat_w, motion.fps)
     motion.root_pos[:, 2] += ground_offset
     bodies.pos_w[:, :, 2] += ground_offset
     return ground_offset
@@ -297,10 +367,20 @@ def collider_floor_lift(
         data.qpos[7:] = joint_pos[t]
         mujoco.mj_kinematics(model, data)
         axes_z = data.xmat[body_ids].reshape(-1, 3, 3)[:, 2, :]
-        lowest = min(
-            data.xpos[b, 2] + float((p @ axis).min())
-            for b, p, axis in zip(body_ids, points, axes_z, strict=True)
-        )
+        heights = []
+        for geom_id, body_id, point_cloud, axis in zip(
+            geoms, body_ids, points, axes_z, strict=True
+        ):
+            if model.geom_type[geom_id] in (
+                mujoco.mjtGeom.mjGEOM_SPHERE,
+                mujoco.mjtGeom.mjGEOM_CAPSULE,
+                mujoco.mjtGeom.mjGEOM_CYLINDER,
+            ):
+                local_lowest = _rounded_geom_lowest_projection(model, geom_id, axis)
+                heights.append(data.xpos[body_id, 2] + float(local_lowest))
+            else:
+                heights.append(data.xpos[body_id, 2] + float((point_cloud @ axis).min()))
+        lowest = min(heights)
         lift[t] = max(0.0, -lowest)
     return lift
 

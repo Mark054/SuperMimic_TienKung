@@ -13,6 +13,7 @@ functions work unchanged, plus:
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -428,6 +429,7 @@ class MultiClipMotionCommand(CommandTerm):
 
     _ghost_model = None
     _collision_model = None
+    _collision_data = None
 
     def _debug_vis_impl(self, visualizer: DebugVisualizer) -> None:
         """Draw optional reference and collision overlays."""
@@ -440,12 +442,18 @@ class MultiClipMotionCommand(CommandTerm):
             import mujoco
 
             m = copy.deepcopy(self._env.sim.mj_model)
-            names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, gi) or "" for gi in range(m.ngeom)]
-            # Mesh-collision models have no separate visual geoms; the colliders are the visuals.
-            has_visual = any(name.endswith("_visual") for name in names)
+            names = [
+                mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, gi) or ""
+                for gi in range(m.ngeom)
+            ]
+            visual_names = {name for name in names if name.endswith("_visual")}
             for gi, name in enumerate(names):
-                is_visual = name.endswith("_visual") or (not has_visual and name.endswith("_collision"))
-                if is_visual and m.geom_type[gi] == mujoco.mjtGeom.mjGEOM_MESH:
+                collision_visual = (
+                    name.endswith("_collision")
+                    and f"{name.removesuffix('_collision')}_visual" not in visual_names
+                )
+                is_visual = name.endswith("_visual") or collision_visual
+                if is_visual and int(m.geom_type[gi]) == mujoco.mjtGeom.mjGEOM_MESH:
                     m.geom_rgba[gi] = (0.2, 0.6, 1.0, 0.45)
                 else:
                     m.geom_rgba[gi, 3] = 0
@@ -456,15 +464,26 @@ class MultiClipMotionCommand(CommandTerm):
             import mujoco
 
             m = copy.deepcopy(self._env.sim.mj_model)
+            pattern = re.compile(self.cfg.collider_geom_regex)
             for gi in range(m.ngeom):
                 name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, gi) or ""
-                if name.endswith("_collision"):
+                if pattern.fullmatch(name.rsplit("/", 1)[-1]):
                     m.geom_rgba[gi] = (1.0, 0.05, 0.05, 0.5)
                     # The ghost renderer hides group 3, where simplified hulls live.
                     m.geom_group[gi] = 0
                 else:
                     m.geom_rgba[gi, 3] = 0
             self._collision_model = m
+            self._collision_data = mujoco.MjData(m)
+            if self.cfg.show_collider_primitives:
+                # Foot capsules sit inside the sole mesh; fade the mesh so they are visible.
+                sim_m = self._env.sim.mj_model
+                for gi in range(sim_m.ngeom):
+                    name = mujoco.mj_id2name(sim_m, mujoco.mjtObj.mjOBJ_GEOM, gi) or ""
+                    short = name.rsplit("/", 1)[-1]
+                    if short.startswith("ankle_roll_") and short.endswith("_visual"):
+                        sim_m.geom_matid[gi] = -1
+                        sim_m.geom_rgba[gi] = (0.8, 0.8, 0.8, 0.25)
         indexing = self.robot.indexing
         free_q = indexing.free_joint_q_adr.cpu().numpy()
         joint_q = indexing.joint_q_adr.cpu().numpy()
@@ -487,9 +506,39 @@ class MultiClipMotionCommand(CommandTerm):
                 qpos[free_q[0:3]] = robot_root_pos[e]
                 qpos[free_q[3:7]] = robot_root_quat[e]
                 qpos[joint_q] = robot_joint_pos[e]
-                visualizer.add_ghost_mesh(
-                    qpos, model=self._collision_model, alpha=0.5, label=f"colliders_{e}"
-                )
+                if self.cfg.show_collider_primitives:
+                    import mujoco
+
+                    self._collision_data.qpos[:] = qpos
+                    mujoco.mj_forward(self._collision_model, self._collision_data)
+                    pattern = re.compile(self.cfg.collider_geom_regex)
+                    color = (1.0, 0.0, 0.0, 0.9)
+                    for gi in range(self._collision_model.ngeom):
+                        name = mujoco.mj_id2name(
+                            self._collision_model, mujoco.mjtObj.mjOBJ_GEOM, gi
+                        ) or ""
+                        if not pattern.fullmatch(name.rsplit("/", 1)[-1]):
+                            continue
+                        geom_type = int(self._collision_model.geom_type[gi])
+                        if geom_type not in (
+                            mujoco.mjtGeom.mjGEOM_CAPSULE,
+                            mujoco.mjtGeom.mjGEOM_CYLINDER,
+                        ):
+                            continue
+                        center = self._collision_data.geom_xpos[gi]
+                        axis = self._collision_data.geom_xmat[gi].reshape(3, 3)[:, 2]
+                        radius, half_length = self._collision_model.geom_size[gi, :2]
+                        radius = max(float(radius), 0.008)
+                        start = center - half_length * axis
+                        end = center + half_length * axis
+                        visualizer.add_cylinder(start, end, float(radius), color)
+                        if geom_type == mujoco.mjtGeom.mjGEOM_CAPSULE:
+                            visualizer.add_sphere(start, float(radius), color)
+                            visualizer.add_sphere(end, float(radius), color)
+                else:
+                    visualizer.add_ghost_mesh(
+                        qpos, model=self._collision_model, alpha=0.8, label=f"colliders_{e}"
+                    )
 
 
 @dataclass(kw_only=True)
@@ -512,6 +561,8 @@ class MultiClipMotionCommandCfg(CommandTermCfg):
     softmax_temp: float = 25.0
     show_reference_ghost: bool = True
     show_colliders: bool = False
+    collider_geom_regex: str = r".*_collision"
+    show_collider_primitives: bool = False
     g_max: float = 10.0
     gamma: float = 0.99
     ema_alpha: float = 0.05
